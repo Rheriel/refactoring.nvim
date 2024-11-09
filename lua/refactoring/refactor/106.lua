@@ -33,49 +33,33 @@ local function get_return_vals(refactor)
     local local_declarations =
         refactor.ts:get_local_declarations(refactor.scope)
 
-    local region_declarations = vim.iter(local_declarations)
-        :filter(function(node)
-            return utils.region_intersect(node, refactor.region)
-        end)
-        :map(
-            ---@param node TSNode
-            ---@return TSNode
-            function(node)
-                return refactor.ts:get_local_var_names(node)[1]
+    -- Filter and map local declarations
+    local region_declarations = {}
+    for _, node in ipairs(local_declarations) do
+        if utils.region_intersect(node, refactor.region) then
+            local var_name = refactor.ts:get_local_var_names(node)[1]
+            if var_name then
+                local mapped_node =
+                    utils.node_to_parent_if_needed(refactor, var_name)
+                table.insert(region_declarations, mapped_node)
             end
-        )
-        :filter(
-            ---@param node TSNode
-            function(node)
-                return not not node
-            end
-        )
-        :map(
-            ---@param node TSNode
-            ---@return TSNode
-            function(node)
-                return utils.node_to_parent_if_needed(refactor, node)
-            end
-        )
-        :totable()
+        end
+    end
 
-    local refs = vim.iter(refactor.ts:get_references(refactor.scope))
-        :filter(function(node)
-            return utils.after_region(node, refactor.region)
-        end)
-        :map(
-            ---@param node TSNode
-            ---@return TSNode
-            function(node)
-                return utils.node_to_parent_if_needed(refactor, node)
-            end
-        )
-        :totable()
+    -- Filter and map references
+    local refs = {}
+    for _, node in ipairs(refactor.ts:get_references(refactor.scope)) do
+        if utils.after_region(node, refactor.region) then
+            local mapped_node = utils.node_to_parent_if_needed(refactor, node)
+            table.insert(refs, mapped_node)
+        end
+    end
 
     local bufnr = refactor.buffers[1]
     local region_var_map = utils.nodes_to_text_set(bufnr, region_declarations)
-
     local ref_map = utils.nodes_to_text_set(bufnr, refs)
+
+    -- Intersect keys and return sorted result
     local return_vals =
         vim.tbl_keys(utils.table_key_intersect(region_var_map, ref_map))
     table.sort(return_vals)

@@ -176,19 +176,18 @@ function TreeSitter:get_local_defs(scope, region)
 
     vim.list_extend(nodes, local_var_names)
 
-    nodes = vim.iter(nodes)
-        :filter(function(node)
-            return utils.region_complement(node, region)
-        end)
-        :filter(
-            --- @param node TSNode
-            ---@return boolean
-            function(node)
-                return Region:from_node(node):above(region)
-            end
-        )
-        :totable()
-    return nodes
+    -- Manual filtering instead of vim.iter
+    local filtered_nodes = {}
+    for _, node in ipairs(nodes) do
+        if
+            utils.region_complement(node, region)
+            and Region:from_node(node):above(region)
+        then
+            table.insert(filtered_nodes, node)
+        end
+    end
+
+    return filtered_nodes
 end
 
 ---@param node TSNode
@@ -292,11 +291,12 @@ end
 ---@param region RefactorRegion
 ---@return TSNode[]
 function TreeSitter:get_region_refs(scope, region)
-    local nodes = vim.iter(self:get_references(scope))
-        :filter(function(node)
-            return utils.region_intersect(node, region, region.bufnr)
-        end)
-        :totable()
+    local nodes = {}
+    for _, node in ipairs(self:get_references(scope)) do
+        if utils.region_intersect(node, region, region.bufnr) then
+            table.insert(nodes, node)
+        end
+    end
 
     return nodes
 end

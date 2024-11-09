@@ -253,28 +253,20 @@ end
 ---@param refactor Refactor
 ---@return string[]
 function M.get_selected_locals(refactor)
-    local local_defs = vim.iter(
-        refactor.ts:get_local_defs(refactor.scope, refactor.region)
-    )
-        :map(
-            ---@param node TSNode
-            ---@return TSNode[]
-            function(node)
-                return M.node_to_parent_if_needed(refactor, node)
-            end
-        )
-        :totable()
-    local region_refs = vim.iter(
-        refactor.ts:get_region_refs(refactor.scope, refactor.region)
-    )
-        :map(
-            ---@param node TSNode
-            ---@return TSNode[]
-            function(node)
-                return M.node_to_parent_if_needed(refactor, node)
-            end
-        )
-        :totable()
+    local local_defs = {}
+
+    for _, node in
+        ipairs(refactor.ts:get_local_defs(refactor.scope, refactor.region))
+    do
+        table.insert(local_defs, M.node_to_parent_if_needed(refactor, node))
+    end
+
+    local region_refs = {}
+    for _, node in
+        ipairs(refactor.ts:get_region_refs(refactor.scope, refactor.region))
+    do
+        table.insert(region_refs, M.node_to_parent_if_needed(refactor, node))
+    end
 
     local bufnr = refactor.buffers[1]
     local local_def_map = M.nodes_to_text_set(bufnr, local_defs)

@@ -21,6 +21,7 @@ end
 ---@return number
 M.buf_indent_amount = function(point, refactor, below, bufnr)
     local region = Region:from_point(point, bufnr)
+
     local region_node = region:to_ts_node(refactor.ts:get_root())
 
     local scope = refactor.ts:get_scope(region_node)
@@ -30,8 +31,10 @@ M.buf_indent_amount = function(point, refactor, below, bufnr)
     end
 
     --- @type TSNode[]
+
     local nodes = {}
     local statements = refactor.ts:get_statements(scope)
+
     for _, node in ipairs(statements) do
         table.insert(nodes, node)
     end
@@ -52,47 +55,37 @@ M.buf_indent_amount = function(point, refactor, below, bufnr)
         table.insert(line_numbers, end_row + 1)
     end
 
+    --- Filter unique line numbers while keeping distance condition
+
     ---@type table<integer, boolean>
-    local already_seend = {}
-    line_numbers = vim.iter(line_numbers)
-        :filter(
-            ---@param line_number integer
-            ---@return boolean
-            function(line_number)
-                if already_seend[line_number] then
-                    return false
-                end
-                already_seend[line_number] = true
-                local distance = point.row - line_number
-                return distance ~= 0
-            end
-        )
-        :totable()
+    local already_seen = {}
+    local unique_line_numbers = {}
+    for _, line_number in ipairs(line_numbers) do
+        if not already_seen[line_number] then
+            already_seen[line_number] = true
 
-    local line_numbers_up = vim.iter(line_numbers)
-        :filter(
-            ---@param line_number integer
-            ---@return boolean
-            function(line_number)
-                local distance = point.row - line_number
-                return distance > 0
-            end
-        )
-        :totable()
-    local line_numbers_down = vim.iter(line_numbers)
-        :filter(
-            ---@param line_number integer
-            ---@return boolean
-            function(line_number)
-                local distance = point.row - line_number
-                return distance < 0
-            end
-        )
-        :totable()
+            local distance = point.row - line_number
 
-    ---@param a integer
-    ---@param b integer
-    ---@return boolean
+            if distance ~= 0 then
+                table.insert(unique_line_numbers, line_number)
+            end
+        end
+    end
+
+    -- Split line_numbers into up and down lists based on the point row
+    local line_numbers_up = {}
+    local line_numbers_down = {}
+
+    for _, line_number in ipairs(unique_line_numbers) do
+        local distance = point.row - line_number
+        if distance > 0 then
+            table.insert(line_numbers_up, line_number)
+        elseif distance < 0 then
+            table.insert(line_numbers_down, line_number)
+        end
+    end
+
+    --- Sort function
     local sort = function(a, b)
         local a_distance = math.abs(point.row - a)
         local b_distance = math.abs(point.row - b)
@@ -108,6 +101,7 @@ M.buf_indent_amount = function(point, refactor, below, bufnr)
     local line_up_indent = vim.fn.indent(line_up)
     local cursor_indent = vim.fn.indent(point.row)
 
+    --- Determine the indent scope whitespace
     --- @type integer
     local indent_scope_whitespace
     if below then
